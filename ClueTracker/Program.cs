@@ -10,8 +10,21 @@ namespace ClueTracker
     {
         static void Main(string[] args)
         {
-            Game game = new Game();
-            game.Play();
+            try
+            {
+                Game game = new Game();
+                game.Play();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception occurred: {ex.Message}");
+                Console.WriteLine(ex.StackTrace);
+            }
+            finally
+            {
+                Console.WriteLine("Hit a key to continue...");
+                Console.ReadKey();
+            }
         }
     }
 }

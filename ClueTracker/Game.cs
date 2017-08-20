@@ -50,6 +50,7 @@ namespace ClueTracker
             PrintHeader("Player Entry");
 
             Console.WriteLine(" -> The first player is always you.");
+            Console.WriteLine(" -> Enter players in order of play.");
             Console.WriteLine(" -> Enter a blank name to stop entering players.");
             Console.WriteLine();
 
@@ -95,6 +96,7 @@ namespace ClueTracker
 
                 AssignCardToPlayer(card, MyPlayer);
 
+                PrintHeader("Selected Cards");
                 PrintCards(MyPlayer.Cards);
             }
         }
@@ -294,14 +296,23 @@ namespace ClueTracker
             // Display the knowledge we have of the player
             PrintHeader($"Player Data for {player.Name}");
 
+            // Display the cards this player owns
+            PrintHeader("Owned Cards");
             PrintCards(player.Cards);
-            PrintAccusations(player.Accusations);
+
+            // Display the accusations they made
+            PrintHeader("Made Accusations");
+            IEnumerable<Accusation> madeAccusations = player.Accusations;
+            PrintAccusations(madeAccusations);
+
+            // Display the accusations they answered
+            PrintHeader("Answered Accusations");
+            IEnumerable<Accusation> answeredAccusations = Players.SelectMany(x => x.Accusations.Where(a => a.Response?.Player == player));
+            PrintAccusations(answeredAccusations);
         }
 
         private void PrintCards(IEnumerable<Card> cards)
         {
-            PrintHeader("Cards");
-
             foreach (Card card in cards)
             {
                 Console.WriteLine($"  {card.Name}");
@@ -310,8 +321,6 @@ namespace ClueTracker
 
         private void PrintAccusations(IEnumerable<Accusation> accusations)
         {
-            PrintHeader("Accusations");
-
             foreach (Accusation accusation in accusations)
             {
                 Console.WriteLine($"  {accusation.ToString()}");

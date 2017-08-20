@@ -15,7 +15,6 @@ namespace ClueTracker
         public static Room LivingRoom { get; } = new Room("LivingRoom");
         public static Room Observatory { get; } = new Room("Observatory");
         public static Room Patio { get; } = new Room("Patio");
-        public static Room Pool { get; } = new Room("Pool");
         public static Room Spa { get; } = new Room("Spa");
         public static Room Theater { get; } = new Room("Theater");
 
@@ -28,7 +27,6 @@ namespace ClueTracker
             LivingRoom,
             Observatory,
             Patio,
-            Pool,
             Spa,
             Theater,
         };
