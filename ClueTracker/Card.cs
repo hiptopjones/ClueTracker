@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace ClueTracker
 {
-    class Card
+    public class Card
     {
         public string Name { get; }
 
@@ -18,6 +18,16 @@ namespace ClueTracker
         public override string ToString()
         {
             return Name;
+        }
+
+        public override bool Equals(object obj)
+        {
+            Card thisCard = this;
+            Card thatCard = obj as Card;
+
+            return (thatCard != null && 
+                thisCard.GetType() == thatCard.GetType() &&
+                thisCard.Name == thatCard.Name);
         }
     }
 }

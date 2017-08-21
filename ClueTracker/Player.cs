@@ -10,9 +10,9 @@ namespace ClueTracker
     {
         public string Name { get; set; }
 
-        public List<Rumor> Rumors { get; } = new List<Rumor>();
+        public List<Rumor> Rumors { get; set; } = new List<Rumor>();
 
-        public HashSet<Card> Cards { get; } = new HashSet<Card>();
+        public HashSet<Card> Cards { get; set; } = new HashSet<Card>();
 
         public override string ToString()
         {

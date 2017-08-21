@@ -16,26 +16,72 @@ namespace ClueTracker
         private const int HiddenCardCount = 3;
         private const string SaveGameFilePath = @"c:\Users\peterj\Desktop\ClueTracker.json";
 
+        private readonly JsonSerializerSettings SerializerSettings = new JsonSerializerSettings
+        {
+            PreserveReferencesHandling = PreserveReferencesHandling.Objects,
+            ObjectCreationHandling = ObjectCreationHandling.Replace,
+            Formatting = Formatting.Indented,
+        };
+
+        public List<Room> AllRooms { get; set; } = new List<Room>()
+        {
+            new Room("DiningRoom"),
+            new Room("GuestHouse"),
+            new Room("Hall"),
+            new Room("Kitchen"),
+            new Room("LivingRoom"),
+            new Room("Observatory"),
+            new Room("Patio"),
+            new Room("Spa"),
+            new Room("Theater"),
+        };
+
+        public List<Weapon> AllWeapons { get; set; } = new List<Weapon>()
+        {
+            new Weapon("Axe"),
+            new Weapon("Bat"),
+            new Weapon("Candlestick"),
+            new Weapon("Dumbbell"),
+            new Weapon("Knife"),
+            new Weapon("Pistol"),
+            new Weapon("Poison"),
+            new Weapon("Rope"),
+            new Weapon("Trophy"),
+        };
+
+        public List<Guest> AllGuests { get; set; } = new List<Guest>()
+        {
+            new Guest("Green"),
+            new Guest("Mustard"),
+            new Guest("Peacock"),
+            new Guest("Plum"),
+            new Guest("Scarlet"),
+            new Guest("White"),
+        };
+
         public List<Player> Players { get; set; }
 
-        public Player MyPlayer { get; set; }
-
-        public List<Card> AllCards { get; set; }
-
-        public Game()
+        [JsonIgnore]
+        public Player MyPlayer
         {
-            List<Card> cards = new List<Card>();
-
-            cards.AddRange(Guest.AllGuests);
-            cards.AddRange(Room.AllRooms);
-            cards.AddRange(Weapon.AllWeapons);
-
-            AllCards = cards;
+            get
+            {
+                return Players?.FirstOrDefault();
+            }
         }
+        
+        [JsonIgnore]
+        public List<Card> AllCards
+        {
+            get
+            {
+                return Enumerable.Concat(AllGuests, Enumerable.Concat<Card>(AllRooms, AllWeapons)).ToList();
+            }
+        }
+
         public void Play()
         {
             EnterSetupMenu();
-            EnterMainMenu();
         }
 
         private void EnterSetupMenu()
@@ -70,7 +116,6 @@ namespace ClueTracker
         private void EnterPlayers()
         {
             Players = PromptForPlayerEntry();
-            MyPlayer = Players[MyPlayerIndex];
         }
 
         private List<Player> PromptForPlayerEntry()
@@ -139,18 +184,19 @@ namespace ClueTracker
 
         private void SaveGame()
         {
-            string savedGameJson = JsonConvert.SerializeObject(this);
+            string savedGameJson = JsonConvert.SerializeObject(this, SerializerSettings);
             File.WriteAllText(SaveGameFilePath, savedGameJson);
         }
 
         private void RestoreGame()
         {
             string savedGameJson = File.ReadAllText(SaveGameFilePath);
-            Game savedGame = JsonConvert.DeserializeObject<Game>(savedGameJson);
+            Game savedGame = JsonConvert.DeserializeObject<Game>(savedGameJson, SerializerSettings);
 
+            AllGuests = savedGame.AllGuests;
+            AllRooms = savedGame.AllRooms;
+            AllWeapons = savedGame.AllWeapons;
             Players = savedGame.Players;
-            MyPlayer = savedGame.MyPlayer;
-            AllCards = savedGame.AllCards;
 
             Console.WriteLine("Restored game from disk");
         }
@@ -196,7 +242,7 @@ namespace ClueTracker
                 }
 
                 // Ensure the game is saved on every action
-                //SaveGame();
+                SaveGame();
             }
         }
 
@@ -215,6 +261,8 @@ namespace ClueTracker
 
                 gossipingPlayer.Rumors.Add(rumor);
             }
+
+            AnalyzeGameState();
         }
 
         private Rumor PromptForRumor()
@@ -229,19 +277,19 @@ namespace ClueTracker
         private Room PromptForRumorRoom()
         {
             PrintHeader("Rumor: Room?");
-            return PromptForMenuChoice(Room.AllRooms);
+            return PromptForMenuChoice(AllRooms);
         }
 
         private Weapon PromptForRumorWeapon()
         {
             PrintHeader("Rumor: Weapon?");
-            return PromptForMenuChoice(Weapon.AllWeapons);
+            return PromptForMenuChoice(AllWeapons);
         }
 
         private Guest PromptForRumorGuest()
         {
             PrintHeader("Rumor: Guest?");
-            return PromptForMenuChoice(Guest.AllGuests);
+            return PromptForMenuChoice(AllGuests);
         }
 
         private Response PromptForRumorResponse(Rumor rumor)
@@ -310,6 +358,11 @@ namespace ClueTracker
             }
         }
 
+        private void AnalyzeGameState()
+        {
+            // This is where the magic should happen
+        }
+
         private List<Card> GetFilteredCards(List<Card> source, List<Card> excludes)
         {
             return source.Where(x => !excludes.Contains(x)).ToList();
@@ -328,7 +381,7 @@ namespace ClueTracker
             Console.WriteLine();
             Console.WriteLine(" Guests");
 
-            foreach (Guest guest in Guest.AllGuests)
+            foreach (Guest guest in AllGuests)
             {
                 Player owner = Players.Where(x => x.Cards.Contains(guest)).SingleOrDefault();
                 Console.WriteLine($"  {guest,-20} {owner}");
@@ -337,7 +390,7 @@ namespace ClueTracker
             Console.WriteLine();
             Console.WriteLine("Rooms");
 
-            foreach (Room room in Room.AllRooms)
+            foreach (Room room in AllRooms)
             {
                 Player owner = Players.Where(x => x.Cards.Contains(room)).SingleOrDefault();
                 Console.WriteLine($"  {room,-20} {owner}");
@@ -346,7 +399,7 @@ namespace ClueTracker
             Console.WriteLine();
             Console.WriteLine("Weapons");
 
-            foreach (Weapon weapon in Weapon.AllWeapons)
+            foreach (Weapon weapon in AllWeapons)
             {
                 Player owner = Players.Where(x => x.Cards.Contains(weapon)).SingleOrDefault();
                 Console.WriteLine($"  {weapon,-20} {owner}");
