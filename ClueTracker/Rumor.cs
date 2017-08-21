@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace ClueTracker
 {
-    class Accusation
+    class Rumor
     {
-        public Player Accuser { get; set; }
+        public Player Gossiper { get; set; }
         public Room Room { get; set; }
         public Weapon Weapon { get; set; }
         public Guest Guest { get; set; }
@@ -20,7 +20,8 @@ namespace ClueTracker
             StringBuilder builder = new StringBuilder();
 
             // Evenly-spaced table
-            builder.Append("  ");
+            builder.Append($"Rumor by {Gossiper} -->");
+            builder.Append("\t");
             builder.Append(string.Format("{0,-20}", GetCardRevealString(Guest, Response)));
             builder.Append("\t");
             builder.Append(string.Format("{0,-20}", GetCardRevealString(Room, Response)));
@@ -28,7 +29,7 @@ namespace ClueTracker
             builder.Append(string.Format("{0,-20}", GetCardRevealString(Weapon, Response)));
 
             builder.Append("\t");
-            if (Response.Player != null)
+            if (Response != null && Response.Player != null)
             {
                 builder.Append($"--> revealed by {Response.Player.Name}");
             }
@@ -42,7 +43,7 @@ namespace ClueTracker
 
         private string GetCardRevealString(Card card, Response response)
         {
-            if (response.Card != null && card == response.Card)
+            if (response != null && response.Card != null && card == response.Card)
             {
                 return $"[{card.Name}]";
             }

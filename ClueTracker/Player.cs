@@ -10,7 +10,7 @@ namespace ClueTracker
     {
         public string Name { get; set; }
 
-        public List<Accusation> Accusations { get; } = new List<Accusation>();
+        public List<Rumor> Rumors { get; } = new List<Rumor>();
 
         public HashSet<Card> Cards { get; } = new HashSet<Card>();
 

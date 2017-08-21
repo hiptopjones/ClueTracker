@@ -1,5 +1,7 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -12,6 +14,7 @@ namespace ClueTracker
         private const int MyPlayerIndex = 0;
         private const int DeckCardCount = 24;
         private const int HiddenCardCount = 3;
+        private const string SaveGameFilePath = @"c:\Users\peterj\Desktop\ClueTracker.json";
 
         public List<Player> Players { get; set; }
 
@@ -31,18 +34,43 @@ namespace ClueTracker
         }
         public void Play()
         {
-            Players = PromptForPlayerEntry();
-            if (Players.Count < 2)
+            EnterSetupMenu();
+            EnterMainMenu();
+        }
+
+        private void EnterSetupMenu()
+        {
+            List<MenuCommand> commands = new List<MenuCommand>
             {
-                Console.WriteLine(" Unable to play with less than 2 players.");
-                return;
+                new MenuCommand("Enter Players", EnterPlayers),
+                new MenuCommand("Enter My Cards", EnterCardsForMyPlayer),
+                new MenuCommand("Restore Game", RestoreGame),
+                new MenuCommand("Start Game", EnterMainMenu),
+            };
+
+            MenuCommand exitCommand = new MenuCommand("Exit", null);
+
+            while (true)
+            {
+                PrintHeader("Setup Menu");
+
+                MenuCommand command = PromptForMenuChoice(commands, exitCommand);
+                if (command != null)
+                {
+                    if (command == exitCommand)
+                    {
+                        break;
+                    }
+
+                    command.CommandAction();
+                }
             }
+        }
 
+        private void EnterPlayers()
+        {
+            Players = PromptForPlayerEntry();
             MyPlayer = Players[MyPlayerIndex];
-
-            PromptForMyPlayerCardEntry();
-
-            MainMenu();
         }
 
         private List<Player> PromptForPlayerEntry()
@@ -73,14 +101,17 @@ namespace ClueTracker
             return players;
         }
 
-        private void PromptForMyPlayerCardEntry()
+        private void EnterCardsForMyPlayer()
         {
             PrintHeader("Card Entry");
             Console.WriteLine(" -> Enter your cards.");
             Console.WriteLine(" -> Enter a blank name to stop entering cards.");
             Console.WriteLine();
 
-            int cardsPerPlayer = (DeckCardCount - HiddenCardCount) / Players.Count;
+            int cardsPerPlayer = GetNumberOfCardsPerPlayer();
+
+            // Clear any existing cards
+            MyPlayer.Cards.Clear();
 
             while (MyPlayer.Cards.Count < cardsPerPlayer)
             {
@@ -96,20 +127,55 @@ namespace ClueTracker
 
                 AssignCardToPlayer(card, MyPlayer);
 
-                PrintHeader("Selected Cards");
+                PrintHeader("Assigned Cards");
                 PrintCards(MyPlayer.Cards);
             }
         }
 
-        private void MainMenu()
+        private int GetNumberOfCardsPerPlayer()
         {
+            return (DeckCardCount - HiddenCardCount) / Players.Count;
+        }
+
+        private void SaveGame()
+        {
+            string savedGameJson = JsonConvert.SerializeObject(this);
+            File.WriteAllText(SaveGameFilePath, savedGameJson);
+        }
+
+        private void RestoreGame()
+        {
+            string savedGameJson = File.ReadAllText(SaveGameFilePath);
+            Game savedGame = JsonConvert.DeserializeObject<Game>(savedGameJson);
+
+            Players = savedGame.Players;
+            MyPlayer = savedGame.MyPlayer;
+            AllCards = savedGame.AllCards;
+
+            Console.WriteLine("Restored game from disk");
+        }
+
+        private void EnterMainMenu()
+        {
+            if (Players == null || Players.Count < 2)
+            {
+                Console.WriteLine(" Unable to play with less than 2 players.");
+                return;
+            }
+
+            if (MyPlayer.Cards == null || MyPlayer.Cards.Count != GetNumberOfCardsPerPlayer())
+            {
+                Console.WriteLine(" Unable to play due to invalid number of cards assigned to your player.");
+                return;
+            }
+
             List<MenuCommand> commands = new List<MenuCommand>
             {
-                new MenuCommand("My Cards", ViewMyCards),
-                new MenuCommand("View Player", ViewPlayerData),
-                new MenuCommand("Record Accusation", RecordAccusation),
-                new MenuCommand("Card Sheet", ViewCardSheet),
-
+                new MenuCommand("Record Rumor", RecordRumor),
+                new MenuCommand("View My Cards", ViewMyCards),
+                new MenuCommand("View Player Data", ViewPlayerData),
+                new MenuCommand("View All Cards", ViewAllCards),
+                new MenuCommand("View All Rumors", ViewAllRumors),
             };
 
             MenuCommand exitCommand = new MenuCommand("Exit", null);
@@ -128,66 +194,69 @@ namespace ClueTracker
 
                     command.CommandAction();
                 }
+
+                // Ensure the game is saved on every action
+                //SaveGame();
             }
         }
 
-        private void RecordAccusation()
+        private void RecordRumor()
         {
-            PrintHeader("Record Accusation");
+            PrintHeader("Record Rumor");
 
-            PrintHeader("Accusation: Player?");
+            PrintHeader("Rumor: Player?");
 
-            Player accusingPlayer = PromptForMenuChoice(Players);
-            if (accusingPlayer != null)
+            Player gossipingPlayer = PromptForMenuChoice(Players);
+            if (gossipingPlayer != null)
             {
-                Accusation accusation = PromptForAccusation();
-                accusation.Accuser = accusingPlayer;
-                accusation.Response = PromptForAccusationResponse(accusation);
+                Rumor rumor = PromptForRumor();
+                rumor.Gossiper = gossipingPlayer;
+                rumor.Response = PromptForRumorResponse(rumor);
 
-                accusingPlayer.Accusations.Add(accusation);
+                gossipingPlayer.Rumors.Add(rumor);
             }
         }
 
-        private Accusation PromptForAccusation()
+        private Rumor PromptForRumor()
         {
-            Guest guest = PromptForAccusationGuest();
-            Room room = PromptForAccusationRoom();
-            Weapon weapon = PromptForAccusationWeapon();
+            Guest guest = PromptForRumorGuest();
+            Room room = PromptForRumorRoom();
+            Weapon weapon = PromptForRumorWeapon();
 
-            return new Accusation { Guest = guest, Room = room, Weapon = weapon };
+            return new Rumor { Guest = guest, Room = room, Weapon = weapon };
         }
 
-        private Room PromptForAccusationRoom()
+        private Room PromptForRumorRoom()
         {
-            PrintHeader("Accusation: Room?");
+            PrintHeader("Rumor: Room?");
             return PromptForMenuChoice(Room.AllRooms);
         }
 
-        private Weapon PromptForAccusationWeapon()
+        private Weapon PromptForRumorWeapon()
         {
-            PrintHeader("Accusation: Weapon?");
+            PrintHeader("Rumor: Weapon?");
             return PromptForMenuChoice(Weapon.AllWeapons);
         }
 
-        private Guest PromptForAccusationGuest()
+        private Guest PromptForRumorGuest()
         {
-            PrintHeader("Accusation: Guest?");
+            PrintHeader("Rumor: Guest?");
             return PromptForMenuChoice(Guest.AllGuests);
         }
 
-        private Response PromptForAccusationResponse(Accusation accusation)
+        private Response PromptForRumorResponse(Rumor rumor)
         {
             Response response = null;
 
-            Player respondingPlayer = PromptForAccusationResponsePlayer();
+            Player respondingPlayer = PromptForRumorResponsePlayer(rumor);
             if (respondingPlayer != null)
             {
                 response = new Response { Player = respondingPlayer };
 
-                // We can only learn the card if we are the accusing player
-                if (accusation.Accuser == MyPlayer)
+                // We can only learn the card if we are the player starting the rumor or the responding player
+                if (rumor.Gossiper == MyPlayer || respondingPlayer == MyPlayer)
                 {
-                    response.Card = PromptForAccusationResponseCard(accusation, response);
+                    response.Card = PromptForRumorResponseCard(rumor, response);
                     if (response.Card != null)
                     {
                         AssignCardToPlayer(response.Card, response.Player);
@@ -198,23 +267,23 @@ namespace ClueTracker
             return response;
         }
 
-        private Player PromptForAccusationResponsePlayer()
+        private Player PromptForRumorResponsePlayer(Rumor rumor)
         {
             PrintHeader("Response: Player?");
 
-            List<Player> possiblePlayers = Players.Where(x => x != MyPlayer).ToList();
+            List<Player> possiblePlayers = Players.Where(x => x != rumor.Gossiper).ToList();
             return PromptForMenuChoice(possiblePlayers);
         }
 
-        private Card PromptForAccusationResponseCard(Accusation accusation, Response response)
+        private Card PromptForRumorResponseCard(Rumor rumor, Response response)
         {
             PrintHeader("Response: Card?");
 
-            List<Card> accusationCards = new List<Card>()
+            List<Card> rumorCards = new List<Card>()
             {
-                accusation.Guest,
-                accusation.Room,
-                accusation.Weapon,
+                rumor.Guest,
+                rumor.Room,
+                rumor.Weapon,
             };
 
             // This code pares down the card list that will be prompted to only include
@@ -228,7 +297,7 @@ namespace ClueTracker
             List<Card> playerCards = allPlayersExceptResponder.SelectMany(x => x.Cards).ToList();
 
             // Remove these player-owned cards from the possible selections
-            List<Card> possibleCards = GetFilteredCards(accusationCards, playerCards);
+            List<Card> possibleCards = GetFilteredCards(rumorCards, playerCards);
 
             return PromptForMenuChoice(possibleCards);
         }
@@ -252,9 +321,9 @@ namespace ClueTracker
             PrintCards(MyPlayer.Cards);
         }
 
-        private void ViewCardSheet()
+        private void ViewAllCards()
         {
-            PrintHeader("Card Sheet");
+            PrintHeader("All Cards");
 
             Console.WriteLine();
             Console.WriteLine(" Guests");
@@ -284,6 +353,14 @@ namespace ClueTracker
             }
         }
 
+        private void ViewAllRumors()
+        {
+            PrintHeader("All Rumors");
+
+            IEnumerable<Rumor> allRumors = Players.SelectMany(x => x.Rumors);
+            PrintRumors(allRumors);
+        }
+
         private void ViewPlayerData()
         {
             PrintHeader("Pick Player");
@@ -300,15 +377,15 @@ namespace ClueTracker
             PrintHeader("Owned Cards");
             PrintCards(player.Cards);
 
-            // Display the accusations they made
-            PrintHeader("Made Accusations");
-            IEnumerable<Accusation> madeAccusations = player.Accusations;
-            PrintAccusations(madeAccusations);
+            // Display the rumors they made
+            PrintHeader("Made Rumors");
+            IEnumerable<Rumor> madeRumors = player.Rumors;
+            PrintRumors(madeRumors);
 
-            // Display the accusations they answered
-            PrintHeader("Answered Accusations");
-            IEnumerable<Accusation> answeredAccusations = Players.SelectMany(x => x.Accusations.Where(a => a.Response?.Player == player));
-            PrintAccusations(answeredAccusations);
+            // Display the rumors they answered
+            PrintHeader("Answered Rumors");
+            IEnumerable<Rumor> answeredRumors = Players.SelectMany(x => x.Rumors.Where(a => a.Response?.Player == player));
+            PrintRumors(answeredRumors);
         }
 
         private void PrintCards(IEnumerable<Card> cards)
@@ -319,11 +396,11 @@ namespace ClueTracker
             }
         }
 
-        private void PrintAccusations(IEnumerable<Accusation> accusations)
+        private void PrintRumors(IEnumerable<Rumor> rumors)
         {
-            foreach (Accusation accusation in accusations)
+            foreach (Rumor rumor in rumors)
             {
-                Console.WriteLine($"  {accusation.ToString()}");
+                Console.WriteLine($"  {rumor.ToString()}");
             }
         }
 
