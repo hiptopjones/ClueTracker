@@ -139,6 +139,12 @@ namespace ClueTracker
                     break;
                 }
 
+                if (players.Any(x => x.Name == playerName))
+                {
+                    Console.WriteLine($"Player name '{playerName}' already in use.");
+                    continue;
+                }
+
                 Player player = new Player { Name = playerName };
                 players.Add(player);
             }
@@ -259,10 +265,33 @@ namespace ClueTracker
                 rumor.Gossiper = gossipingPlayer;
                 rumor.Response = PromptForRumorResponse(rumor);
 
-                gossipingPlayer.Rumors.Add(rumor);
+                if (PromptForRumorConfirmation(rumor))
+                {
+                    gossipingPlayer.Rumors.Add(rumor);
+                }
             }
 
             AnalyzeGameState();
+        }
+
+        private bool PromptForRumorConfirmation(Rumor rumor)
+        {
+            while (true)
+            {
+                PrintHeader("Confirm Rumor Entry");
+                Console.WriteLine($"  {rumor}");
+                Console.WriteLine();
+                Console.WriteLine("Confirm: (Y or N) ");
+                string input = ReadInputLine();
+                if (input == "Y")
+                {
+                    return true;
+                }
+                else if (input == "N")
+                {
+                    return false;
+                }
+            }
         }
 
         private Rumor PromptForRumor()
