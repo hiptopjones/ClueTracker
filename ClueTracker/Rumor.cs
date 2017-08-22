@@ -9,11 +9,24 @@ namespace ClueTracker
     class Rumor
     {
         public Player Gossiper { get; set; }
+        public Guest Guest { get; set; }
         public Room Room { get; set; }
         public Weapon Weapon { get; set; }
-        public Guest Guest { get; set; }
 
         public Response Response { get; set; }
+
+        public List<Card> Cards
+        {
+            get
+            {
+                return new List<Card>()
+                {
+                    Guest,
+                    Room,
+                    Weapon
+                };
+            }
+        }
 
         public override string ToString()
         {

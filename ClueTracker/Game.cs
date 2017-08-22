@@ -346,9 +346,12 @@ namespace ClueTracker
 
         private Player PromptForRumorResponsePlayer(Rumor rumor)
         {
-            PrintHeader("Response: Player?");
+            // Filter out the player who started the rumor, and my player if I don't
+            // have any of the cards in the rumor
+            List<Player> possiblePlayers = Players.Where(x => x != rumor.Gossiper)
+                .Where(x => x != MyPlayer || x.Cards.Intersect(rumor.Cards).Any()).ToList();
 
-            List<Player> possiblePlayers = Players.Where(x => x != rumor.Gossiper).ToList();
+            PrintHeader("Response: Player?");
             return PromptForMenuChoice(possiblePlayers);
         }
 
