@@ -488,8 +488,16 @@ namespace ClueTracker
             PrintHeader($"Player Data for {player.Name}");
 
             // Display the cards this player owns
-            PrintHeader("Owned Cards");
+            PrintHeader($"Owned Cards (Missing: {GetNumberOfCardsPerPlayer() - player.Cards.Count})");
             PrintCards(player.Cards);
+
+            // Display the cards this player may own (if all of their cards are not known)
+            PrintHeader("Possible Cards");
+            if (player.Cards.Count < GetNumberOfCardsPerPlayer())
+            {
+                IEnumerable<Card> possibleCards = GetPossibleCardsForPlayer(player);
+                PrintCards(possibleCards);
+            }
 
             // Display the rumors they made
             PrintHeader("Made Rumors");
@@ -500,6 +508,61 @@ namespace ClueTracker
             PrintHeader("Answered Rumors");
             IEnumerable<Rumor> answeredRumors = Players.SelectMany(x => x.Rumors.Where(a => a.Response?.Player == player));
             PrintRumors(answeredRumors);
+        }
+
+        private IEnumerable<Card> GetPossibleCardsForPlayer(Player player)
+        {
+            IEnumerable<Card> ownedCards = Players.SelectMany(x => x.Cards);
+
+            // Start with all of the unowned cards
+            IEnumerable<Card> possibleCards = AllCards.Where(x => !ownedCards.Any(c => c == x));
+
+            // For each rumor, get the sequence of players between the gossiper and the responder
+            // This lets us see who didn't reveal a card, enabling us to eliminate it from their cards
+            IEnumerable<Rumor> allRumors = Players.SelectMany(x => x.Rumors);
+            foreach (Rumor rumor in allRumors)
+            {
+                List<Player> nonRevealingPlayers;
+
+                if (rumor.Response == null)
+                {
+                    // If no player responded to the rumor, then no player has the card
+                    nonRevealingPlayers = Players.Where(x => x != rumor.Gossiper).ToList();
+                }
+                else
+                {
+                    // Get the players who could not show a card for this rumor
+                    nonRevealingPlayers = GetPlayersBetween(rumor.Gossiper, rumor.Response.Player);
+                }
+
+                if (nonRevealingPlayers.Contains(player))
+                {
+                    // This player was unable to prove this rumor false, so remove this rumor's cards
+                    // from the possible list 
+                    possibleCards = possibleCards.Except(rumor.Cards);
+                }
+            }
+
+            return possibleCards;
+        }
+
+        private List<Player> GetPlayersBetween(Player startPlayer, Player endPlayer)
+        {
+            List<Player> playersBetween = new List<Player>();
+
+            int i = Players.IndexOf(startPlayer);
+            while (true)
+            {
+                Player currentPlayer = Players[++i % Players.Count];
+                if (currentPlayer == endPlayer)
+                {
+                    break;
+                }
+
+                playersBetween.Add(currentPlayer);
+            }
+
+            return playersBetween;
         }
 
         private void PrintCards(IEnumerable<Card> cards)
