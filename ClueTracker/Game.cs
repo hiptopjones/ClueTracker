@@ -61,6 +61,8 @@ namespace ClueTracker
 
         public List<Card> ExcludedCards { get; set; } = new List<Card>();
 
+        public List<Card> EnvelopeCards { get; set; } = new List<Card>();
+
         public List<Player> Players { get; set; } = new List<Player>();
 
         [JsonIgnore]
@@ -205,6 +207,7 @@ namespace ClueTracker
             AllRooms = savedGame.AllRooms;
             AllWeapons = savedGame.AllWeapons;
             ExcludedCards = savedGame.ExcludedCards;
+            EnvelopeCards = savedGame.EnvelopeCards;
             Players = savedGame.Players;
 
             Console.WriteLine("Restored game from disk");
@@ -238,6 +241,8 @@ namespace ClueTracker
 
             while (true)
             {
+                DisplayEnvelopeCards();
+
                 PrintHeader("Main Menu");
 
                 MenuCommand command = PromptForMenuChoice(commands, exitCommand);
@@ -253,6 +258,16 @@ namespace ClueTracker
 
                 // Ensure the game is saved on every action
                 SaveGame();
+            }
+        }
+
+        private void DisplayEnvelopeCards()
+        {
+            PrintHeader("Envelope Cards");
+
+            foreach (Card card in EnvelopeCards)
+            {
+                Console.WriteLine($"  {card}");
             }
         }
 
@@ -455,6 +470,12 @@ namespace ClueTracker
         private void AnalyzeGameState()
         {
             // This is where the magic should happen
+
+            // Recalculate the envelope cards
+            IEnumerable<Card> ownedCards = GetOwnedCards();
+            IEnumerable<Card> possibleCards = Players.SelectMany(GetPossibleCardsForPlayer);
+            IEnumerable<Card> ownedPossibleAndExcludedCards = ownedCards.Union(possibleCards).Union(ExcludedCards);
+            EnvelopeCards = AllCards.Except(ownedPossibleAndExcludedCards).ToList();
         }
 
         private List<Card> GetFilteredCards(List<Card> source, List<Card> excludes)
@@ -470,6 +491,9 @@ namespace ClueTracker
 
         private void ViewAllCards()
         {
+            const string excludedCardMarker = "[n/a]";
+            const string envelopeCardMarker = "<---- [!]";
+
             PrintHeader("All Cards");
 
             Console.WriteLine();
@@ -477,9 +501,20 @@ namespace ClueTracker
 
             foreach (Guest guest in AllGuests)
             {
-                string owner = ExcludedCards.Contains(guest) ?
-                    owner = "[excluded]" :
+                string owner;
+
+                if (ExcludedCards.Contains(guest))
+                {
+                    owner = excludedCardMarker;
+                }
+                else if (EnvelopeCards.Contains(guest))
+                {
+                    owner = envelopeCardMarker;
+                }
+                else
+                {
                     owner = Convert.ToString(Players.Where(x => x.Cards.Contains(guest)).SingleOrDefault());
+                }
 
                 Console.WriteLine($"  {guest,-20} {owner}");
             }
@@ -489,9 +524,20 @@ namespace ClueTracker
 
             foreach (Room room in AllRooms)
             {
-                string owner = ExcludedCards.Contains(room) ?
-                    owner = "[excluded]" :
+                string owner;
+
+                if (ExcludedCards.Contains(room))
+                {
+                    owner = excludedCardMarker;
+                }
+                else if (EnvelopeCards.Contains(room))
+                {
+                    owner = envelopeCardMarker;
+                }
+                else
+                {
                     owner = Convert.ToString(Players.Where(x => x.Cards.Contains(room)).SingleOrDefault());
+                }
 
                 Console.WriteLine($"  {room,-20} {owner}");
             }
@@ -501,9 +547,20 @@ namespace ClueTracker
 
             foreach (Weapon weapon in AllWeapons)
             {
-                string owner = ExcludedCards.Contains(weapon) ?
-                    owner = "[excluded]" :
+                string owner;
+
+                if (ExcludedCards.Contains(weapon))
+                {
+                    owner = excludedCardMarker;
+                }
+                else if (EnvelopeCards.Contains(weapon))
+                {
+                    owner = envelopeCardMarker;
+                }
+                else
+                {
                     owner = Convert.ToString(Players.Where(x => x.Cards.Contains(weapon)).SingleOrDefault());
+                }
 
                 Console.WriteLine($"  {weapon,-20} {owner}");
             }
@@ -535,11 +592,8 @@ namespace ClueTracker
 
             // Display the cards this player may own (if all of their cards are not known)
             PrintHeader("Possible Cards");
-            if (player.Cards.Count < GetNumberOfCardsPerPlayer())
-            {
-                IEnumerable<Card> possibleCards = GetPossibleCardsForPlayer(player);
-                PrintCards(possibleCards);
-            }
+            IEnumerable<Card> possibleCards = GetPossibleCardsForPlayer(player);
+            PrintCards(possibleCards);
 
             // Display the rumors they made
             PrintHeader("Made Rumors");
@@ -554,44 +608,57 @@ namespace ClueTracker
 
         private IEnumerable<Card> GetPossibleCardsForPlayer(Player player)
         {
-            // Start with all of the unowned cards
-            IEnumerable<Card> possibleCards = GetUnownedCards();
+            IEnumerable<Card> possibleCards = Enumerable.Empty<Card>();
 
-            // Remove any extra cards
-            possibleCards = possibleCards.Except(ExcludedCards);
-
-            // For each rumor, get the sequence of players between the gossiper and the responder
-            // This lets us see who didn't reveal a card, enabling us to eliminate it from their cards
-            IEnumerable<Rumor> allRumors = Players.SelectMany(x => x.Rumors);
-            foreach (Rumor rumor in allRumors)
+            if (player.Cards.Count < GetNumberOfCardsPerPlayer())
             {
-                List<Player> nonRevealingPlayers;
+                // Start with all of the unowned cards
+                possibleCards = GetUnownedCards();
 
-                if (rumor.Response == null)
-                {
-                    // If no player responded to the rumor, then no player has the card
-                    nonRevealingPlayers = Players.Where(x => x != rumor.Gossiper).ToList();
-                }
-                else
-                {
-                    // Get the players who could not show a card for this rumor
-                    nonRevealingPlayers = GetPlayersBetween(rumor.Gossiper, rumor.Response.Player);
-                }
+                // Remove any excluded (extra) cards
+                possibleCards = possibleCards.Except(ExcludedCards);
 
-                if (nonRevealingPlayers.Contains(player))
+                // Remove any cards known to be in the envelope
+                possibleCards = possibleCards.Except(EnvelopeCards);
+
+                // For each rumor, get the sequence of players between the gossiper and the responder
+                // This lets us see who didn't reveal a card, enabling us to eliminate it from their cards
+                IEnumerable<Rumor> allRumors = Players.SelectMany(x => x.Rumors);
+                foreach (Rumor rumor in allRumors)
                 {
-                    // This player was unable to prove this rumor false, so remove this rumor's cards
-                    // from the possible list 
-                    possibleCards = possibleCards.Except(rumor.Cards);
+                    List<Player> nonRevealingPlayers;
+
+                    if (rumor.Response == null)
+                    {
+                        // If no player responded to the rumor, then no player has the card
+                        nonRevealingPlayers = Players.Where(x => x != rumor.Gossiper).ToList();
+                    }
+                    else
+                    {
+                        // Get the players who could not show a card for this rumor
+                        nonRevealingPlayers = GetPlayersBetween(rumor.Gossiper, rumor.Response.Player);
+                    }
+
+                    if (nonRevealingPlayers.Contains(player))
+                    {
+                        // This player was unable to prove this rumor false, so remove this rumor's cards
+                        // from the possible list 
+                        possibleCards = possibleCards.Except(rumor.Cards);
+                    }
                 }
             }
 
             return possibleCards;
         }
 
+        private List<Card> GetOwnedCards()
+        {
+            return Players.SelectMany(x => x.Cards).ToList();
+        }
+
         private List<Card> GetUnownedCards()
         {
-            IEnumerable<Card> ownedCards = Players.SelectMany(x => x.Cards);
+            IEnumerable<Card> ownedCards = GetOwnedCards();
             return AllCards.Except(ownedCards).ToList();
         }
 
