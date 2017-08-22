@@ -217,7 +217,7 @@ namespace ClueTracker
 
             if (MyPlayer.Cards == null || MyPlayer.Cards.Count != GetNumberOfCardsPerPlayer())
             {
-                Console.WriteLine(" Unable to play due to invalid number of cards assigned to your player.");
+                Console.WriteLine($" Invalid number of cards ({MyPlayer.Cards.Count}) assigned to your player.");
                 return;
             }
 
@@ -354,8 +354,6 @@ namespace ClueTracker
 
         private Card PromptForRumorResponseCard(Rumor rumor, Response response)
         {
-            PrintHeader("Response: Card?");
-
             List<Card> rumorCards = new List<Card>()
             {
                 rumor.Guest,
@@ -364,19 +362,50 @@ namespace ClueTracker
             };
 
             // This code pares down the card list that will be prompted to only include
-            // available choices.  Cards that people (other than the responder) are known
-            // to own should be excluded from this list.
+            // available choices.
+            List<Card> possibleCards;
 
-            // Get the list of all players, not including the responder
-            List<Player> allPlayersExceptResponder = Players.Where(x => x != response.Player).ToList();
+            if (response.Player == MyPlayer)
+            {
+                // If I'm responding, then only display cards that I have
+                possibleCards = rumorCards.Intersect(MyPlayer.Cards).ToList();
+            }
+            else
+            {
+                // Exclude cards that people (other than the responder) have been assigned
 
-            // Gets the list of cards known to be owned by these players
-            List<Card> playerCards = allPlayersExceptResponder.SelectMany(x => x.Cards).ToList();
+                // Get the list of all players, not including the responder
+                List<Player> allPlayersExceptResponder = Players.Where(x => x != response.Player).ToList();
 
-            // Remove these player-owned cards from the possible selections
-            List<Card> possibleCards = GetFilteredCards(rumorCards, playerCards);
+                // Gets the list of cards known to be owned by these players
+                List<Card> playerCards = allPlayersExceptResponder.SelectMany(x => x.Cards).ToList();
 
+                // Remove these player-owned cards from the possible selections
+                possibleCards = GetFilteredCards(rumorCards, playerCards);
+            }
+
+            // If the responder is me, then display which cards have been revealed already.
+            if (response.Player == MyPlayer)
+            {
+                DisplayPreviouslyRevealedCards(possibleCards);
+            }
+
+            PrintHeader("Response: Card?");
             return PromptForMenuChoice(possibleCards);
+        }
+
+        private void DisplayPreviouslyRevealedCards(List<Card> possibleCards)
+        {
+            PrintHeader("Previously-Revealed Cards");
+
+            foreach (Card card in possibleCards)
+            {
+                List<Player> revealedPlayers = Players.Where(x => x.Rumors.Any(r => r.Response?.Card == card)).ToList();
+                if (revealedPlayers.Any())
+                {
+                    Console.WriteLine($"  {card,-20} revealed to {string.Join(", ", revealedPlayers)}");
+                }
+            }
         }
 
         private void AssignCardToPlayer(Card card, Player player)
