@@ -59,7 +59,9 @@ namespace ClueTracker
             new Guest("White"),
         };
 
-        public List<Player> Players { get; set; }
+        public List<Card> ExcludedCards { get; set; } = new List<Card>();
+
+        public List<Player> Players { get; set; } = new List<Player>();
 
         [JsonIgnore]
         public Player MyPlayer
@@ -202,6 +204,7 @@ namespace ClueTracker
             AllGuests = savedGame.AllGuests;
             AllRooms = savedGame.AllRooms;
             AllWeapons = savedGame.AllWeapons;
+            ExcludedCards = savedGame.ExcludedCards;
             Players = savedGame.Players;
 
             Console.WriteLine("Restored game from disk");
@@ -228,6 +231,7 @@ namespace ClueTracker
                 new MenuCommand("View Player Data", ViewPlayerData),
                 new MenuCommand("View All Cards", ViewAllCards),
                 new MenuCommand("View All Rumors", ViewAllRumors),
+                new MenuCommand("Exclude Card", ExcludeCard),
             };
 
             MenuCommand exitCommand = new MenuCommand("Exit", null);
@@ -252,6 +256,18 @@ namespace ClueTracker
             }
         }
 
+        private void ExcludeCard()
+        {
+            PrintHeader("Exclude Card");
+
+            List<Card> unownedCards = GetUnownedCards();
+            Card card = PromptForMenuChoice(unownedCards);
+            if (card != null)
+            {
+                ExcludedCards.Add(card);
+            }
+        }
+
         private void RecordRumor()
         {
             PrintHeader("Record Rumor");
@@ -262,12 +278,15 @@ namespace ClueTracker
             if (gossipingPlayer != null)
             {
                 Rumor rumor = PromptForRumor();
-                rumor.Gossiper = gossipingPlayer;
-                rumor.Response = PromptForRumorResponse(rumor);
-
-                if (PromptForRumorConfirmation(rumor))
+                if (rumor != null)
                 {
-                    gossipingPlayer.Rumors.Add(rumor);
+                    rumor.Gossiper = gossipingPlayer;
+                    rumor.Response = PromptForRumorResponse(rumor);
+
+                    if (PromptForRumorConfirmation(rumor))
+                    {
+                        gossipingPlayer.Rumors.Add(rumor);
+                    }
                 }
             }
 
@@ -297,8 +316,22 @@ namespace ClueTracker
         private Rumor PromptForRumor()
         {
             Guest guest = PromptForRumorGuest();
+            if (guest == null)
+            {
+                return null;
+            }
+
             Room room = PromptForRumorRoom();
+            if (room == null)
+            {
+                return null;
+            }
+
             Weapon weapon = PromptForRumorWeapon();
+            if (weapon == null)
+            {
+                return null;
+            }
 
             return new Rumor { Guest = guest, Room = room, Weapon = weapon };
         }
@@ -444,7 +477,10 @@ namespace ClueTracker
 
             foreach (Guest guest in AllGuests)
             {
-                Player owner = Players.Where(x => x.Cards.Contains(guest)).SingleOrDefault();
+                string owner = ExcludedCards.Contains(guest) ?
+                    owner = "[excluded]" :
+                    owner = Convert.ToString(Players.Where(x => x.Cards.Contains(guest)).SingleOrDefault());
+
                 Console.WriteLine($"  {guest,-20} {owner}");
             }
 
@@ -453,7 +489,10 @@ namespace ClueTracker
 
             foreach (Room room in AllRooms)
             {
-                Player owner = Players.Where(x => x.Cards.Contains(room)).SingleOrDefault();
+                string owner = ExcludedCards.Contains(room) ?
+                    owner = "[excluded]" :
+                    owner = Convert.ToString(Players.Where(x => x.Cards.Contains(room)).SingleOrDefault());
+
                 Console.WriteLine($"  {room,-20} {owner}");
             }
 
@@ -462,7 +501,10 @@ namespace ClueTracker
 
             foreach (Weapon weapon in AllWeapons)
             {
-                Player owner = Players.Where(x => x.Cards.Contains(weapon)).SingleOrDefault();
+                string owner = ExcludedCards.Contains(weapon) ?
+                    owner = "[excluded]" :
+                    owner = Convert.ToString(Players.Where(x => x.Cards.Contains(weapon)).SingleOrDefault());
+
                 Console.WriteLine($"  {weapon,-20} {owner}");
             }
         }
@@ -512,10 +554,11 @@ namespace ClueTracker
 
         private IEnumerable<Card> GetPossibleCardsForPlayer(Player player)
         {
-            IEnumerable<Card> ownedCards = Players.SelectMany(x => x.Cards);
-
             // Start with all of the unowned cards
-            IEnumerable<Card> possibleCards = AllCards.Where(x => !ownedCards.Any(c => c == x));
+            IEnumerable<Card> possibleCards = GetUnownedCards();
+
+            // Remove any extra cards
+            possibleCards = possibleCards.Except(ExcludedCards);
 
             // For each rumor, get the sequence of players between the gossiper and the responder
             // This lets us see who didn't reveal a card, enabling us to eliminate it from their cards
@@ -544,6 +587,12 @@ namespace ClueTracker
             }
 
             return possibleCards;
+        }
+
+        private List<Card> GetUnownedCards()
+        {
+            IEnumerable<Card> ownedCards = Players.SelectMany(x => x.Cards);
+            return AllCards.Except(ownedCards).ToList();
         }
 
         private List<Player> GetPlayersBetween(Player startPlayer, Player endPlayer)
