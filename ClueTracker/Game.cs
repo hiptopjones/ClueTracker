@@ -263,7 +263,7 @@ namespace ClueTracker
 
         private void DisplayEnvelopeCards()
         {
-            PrintHeader("Envelope Cards");
+            PrintHeader("Envelope Card(s)");
 
             foreach (Card card in EnvelopeCards)
             {
@@ -469,13 +469,74 @@ namespace ClueTracker
 
         private void AnalyzeGameState()
         {
-            // This is where the magic should happen
+            bool anyChanges = false;
 
-            // Recalculate the envelope cards
+            do
+            {
+                // Recalculate the envelope cards
+                anyChanges |= UpdateEnvelopeCards();
+
+                // Deduce card reveals between other players
+                anyChanges |= UpdateRumorCards();
+            }
+            while (anyChanges);
+        }
+
+        private bool UpdateRumorCards()
+        {
+            bool anyChanges = false;
+
+            // Go through all of the rumors, and see we can deduce the cards that were
+            // revealed to other players
+            foreach (Rumor rumor in GetAllRumors())
+            {
+                // Only look at rumors where there was a response, but we don't know the revealed card
+                if (rumor.Response != null && rumor.Response.Card == null)
+                {
+                    // Create a set of known cards, not including any cards from the responding player
+                    IEnumerable<Card> knownCards = GetOwnedCards().Except(rumor.Response.Player.Cards);
+                    knownCards = knownCards.Concat(ExcludedCards);
+                    knownCards = knownCards.Concat(EnvelopeCards);
+
+                    // Remove the known cards from the rumor cards.  If only one card is left, then
+                    // we know which card they showed.
+                    List<Card> unknownCardsInRumor = rumor.Cards.Except(knownCards).ToList();
+                    if (unknownCardsInRumor.Count == 1)
+                    {
+                        rumor.Response.Card = unknownCardsInRumor.Single();
+
+                        PrintHeader("Deduced Card");
+                        Console.WriteLine($"  {rumor}");
+
+                        anyChanges = true;
+                    }
+                }
+            }
+
+            return anyChanges;
+        }
+
+        private bool UpdateEnvelopeCards()
+        {
             IEnumerable<Card> ownedCards = GetOwnedCards();
             IEnumerable<Card> possibleCards = Players.SelectMany(GetPossibleCardsForPlayer);
             IEnumerable<Card> ownedPossibleAndExcludedCards = ownedCards.Union(possibleCards).Union(ExcludedCards);
-            EnvelopeCards = AllCards.Except(ownedPossibleAndExcludedCards).ToList();
+            List<Card> updatedEnvelopeCards = AllCards.Except(ownedPossibleAndExcludedCards).ToList();
+
+            List<Card> newEnvelopeCards = updatedEnvelopeCards.Except(EnvelopeCards).ToList();
+            if (newEnvelopeCards.Any())
+            {
+                PrintHeader("Deduced Envelope Card(s)");
+                foreach (Card card in newEnvelopeCards)
+                {
+                    Console.WriteLine($"  {card}");
+                }
+
+                EnvelopeCards = updatedEnvelopeCards;
+                return true;
+            }
+
+            return false;
         }
 
         private List<Card> GetFilteredCards(List<Card> source, List<Card> excludes)
@@ -570,7 +631,7 @@ namespace ClueTracker
         {
             PrintHeader("All Rumors");
 
-            IEnumerable<Rumor> allRumors = Players.SelectMany(x => x.Rumors);
+            IEnumerable<Rumor> allRumors = GetAllRumors();
             PrintRumors(allRumors);
         }
 
@@ -660,6 +721,11 @@ namespace ClueTracker
         {
             IEnumerable<Card> ownedCards = GetOwnedCards();
             return AllCards.Except(ownedCards).ToList();
+        }
+
+        private List<Rumor> GetAllRumors()
+        {
+            return Players.SelectMany(x => x.Rumors).ToList();
         }
 
         private List<Player> GetPlayersBetween(Player startPlayer, Player endPlayer)
