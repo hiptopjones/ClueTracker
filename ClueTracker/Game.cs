@@ -256,11 +256,11 @@ namespace ClueTracker
 
                     command.CommandAction();
                 }
-            }
 
-            // Ensure the game is analyzed and saved on every action
-            AnalyzeGameState();
-            SaveGame();
+                // Ensure the game is analyzed and saved on every action
+                AnalyzeGameState();
+                SaveGame();
+            }
         }
 
         private void DisplayEnvelopeCards()
@@ -571,8 +571,8 @@ namespace ClueTracker
 
         private void PrintCardWithOwners(Card card)
         {
-            const string excludedCardMarker = "<-- [x]";
-            const string envelopeCardMarker = "<-- [envelope]";
+            const string excludedCardMarker = "[EXCLUDED]";
+            const string envelopeCardMarker = "[ENVELOPE]";
 
             string owner = null;
             if (ExcludedCards.Contains(card))
@@ -596,7 +596,8 @@ namespace ClueTracker
             string notOwners = null;
             if (string.IsNullOrEmpty(owner))
             {
-                IEnumerable<Player> playersNotOwningCard = Players.Where(x => GetImpossibleCardsForPlayer(x).Contains(card));
+                IEnumerable<Player> playersOtherThanMe = Players.Where(x => x != MyPlayer);
+                IEnumerable<Player> playersNotOwningCard = playersOtherThanMe.Where(x => GetImpossibleCardsForPlayer(x).Contains(card));
                 notOwners = string.Join(", ", playersNotOwningCard.OrderBy(x => x.Name));
                 if (!string.IsNullOrEmpty(notOwners))
                 {
@@ -674,6 +675,9 @@ namespace ClueTracker
 
                 // Remove any cards known to not be owned by this player
                 possibleCards = possibleCards.Except(GetImpossibleCardsForPlayer(player));
+
+                // Remove any cards that are the last of their type (must be an envelope card)
+                possibleCards = possibleCards.Except(GetSingleRemainingCards(possibleCards));
             }
 
             return possibleCards;
@@ -693,7 +697,7 @@ namespace ClueTracker
 
         private IEnumerable<Card> GetOwnedAndPossibleCardsForAllPlayers()
         {
-            return Players.SelectMany(GetOwnedAndPossibleCardsForPlayer);
+            return Players.SelectMany(GetOwnedAndPossibleCardsForPlayer).Distinct();
         }
 
         private IEnumerable<Card> GetImpossibleCardsForPlayer(Player player)
@@ -751,6 +755,27 @@ namespace ClueTracker
         private IEnumerable<Rumor> GetRumorsForAllPlayers()
         {
             return Players.SelectMany(x => x.Rumors);
+        }
+
+        private IEnumerable<Card> GetSingleRemainingCards(IEnumerable<Card> possibleCards)
+        {
+            List<Card> remainingGuests = AllGuests.Intersect(possibleCards).ToList();
+            if (remainingGuests.Count == 1)
+            {
+                yield return remainingGuests.Single();
+            }
+
+            List<Card> remainingWeapons = AllWeapons.Intersect(possibleCards).ToList();
+            if (remainingWeapons.Count == 1)
+            {
+                yield return remainingWeapons.Single();
+            }
+
+            List<Card> remainingRooms = AllRooms.Intersect(possibleCards).ToList();
+            if (remainingRooms.Count == 1)
+            {
+                yield return remainingRooms.Single();
+            }
         }
 
         private IEnumerable<Player> GetPlayersBetween(Player startPlayer, Player endPlayer)
